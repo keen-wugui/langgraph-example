@@ -1,7 +1,13 @@
 {
-  "dependencies": ["./my_agent"],
+  "dockerfile_lines": [],
   "graphs": {
-    "agent": "./my_agent/agent.py:graph"
+    "agent": "./my_agent/agent.py:graph",
+    "agent2": "./my_agent/agent2.py:graph",
+    "agent_qs11": "./my_agent/agent_qs11.py:graph"
   },
-  "env": ".env"
+  "env": ".env",
+  "python_version": "3.11",
+  "dependencies": [
+    "./my_agent"
+  ]
 }
