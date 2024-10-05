@@ -2,6 +2,7 @@
 from shared_states import * 
 
 # %% import necessary modules
+from dir_manager import DirManager
 from typing import Sequence, List, Literal, Optional, Annotated
 from pydantic import BaseModel, Field
 from langgraph.graph import StateGraph, END
@@ -14,7 +15,7 @@ from langchain_core.messages import ToolMessage
 # %% define the tool for AgentResponse_CAb
 class AgentResponse_CAb(BaseModel):
     main_func_des: str = Field(..., title="Main Functional Description", description="The functional description of the assigned part of the code directory.")
-    list_sub_func_dsc: List[str] = Field(..., title="List of Sub Functional Descriptions", description="List of sub-functional descriptions for subdirectories or code files in the assigned directory.")
+    list_sub_func_des: List[str] = Field(..., title="List of Sub Functional Descriptions", description="List of sub-functional descriptions for subdirectories or code files in the assigned directory.")
 
 # Passing the Pydantic object as a tool for the model to use
 tools = [AgentResponse_CAb]
@@ -26,10 +27,12 @@ class AgentState_CAb(BaseModel):
     master_dir_tree: str            # from agentResponse_CAa.folder_structure
     assigned_dir_tree: str          # the tree structure part assigned to one CAb
     main_func_des: Optional[str] = None             # the functional description of the assigned part
-    list_sub_func_dsc: List[str] = []    # list of sub-functional descriptions for subdirectories or code files in the assigned directory
+    list_sub_func_des: List[str] = []    # list of sub-functional descriptions for subdirectories or code files in the assigned directory
+    
     messages: Sequence[BaseMessage]
     count_invocations: int = 0
     human_input_special_note: str = ''
+    dir_manager: DirManager = None
 
 # %% node
 # Subgraph node: Handles input from the user and generates the main functional description
@@ -115,7 +118,7 @@ Assigned Directory Tree:
         master_dir_tree=state.master_dir_tree,
         assigned_dir_tree=state.assigned_dir_tree,
         main_func_des=this_agentResponse_CAb.main_func_des if this_agentResponse_CAb else None,
-        list_sub_func_dsc=this_agentResponse_CAb.list_sub_func_dsc if this_agentResponse_CAb else [],
+        list_sub_func_des=this_agentResponse_CAb.list_sub_func_des if this_agentResponse_CAb else [],
         messages=[assistant_message],
         count_invocations=state.count_invocations,
         human_input_special_note=state.human_input_special_note
@@ -212,7 +215,8 @@ state = AgentState_CAb(
     master_design_description=master_design_description,
     master_dir_tree=master_dir_tree,
     assigned_dir_tree=assigned_dir_tree,
-    messages=[user_message]
+    messages=[user_message],
+    dir_manager=state_s1['dir_manager']
 )
 
 # Define a configuration dictionary

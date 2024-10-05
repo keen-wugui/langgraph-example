@@ -2,6 +2,7 @@
 from shared_states import * 
 
 # %% import necessary modules
+from dir_manager import DirManager
 from typing import Sequence, List, Optional
 from pydantic import BaseModel, Field
 from langgraph.graph import StateGraph, END
@@ -17,15 +18,18 @@ from s2_CAa_to_CAb import AgentState_CAb
 class AgentState_Coder(BaseModel):
     assigned_func_des: str  # from agentResponse_CAb.main_func_des
     assigned_file: str  # from agentResponse_CAb.assigned_dir_tree
+    state_CAb: AgentState_CAb = None
+
     messages: Sequence[BaseMessage]
     count_invocations: int = 0
     human_input_special_note: str = ''
-    state_CAb: AgentState_CAb = None
+    dir_manager: DirManager = None
+    
 
     # for the coder to generate 
     code_design_description: str  # The design description for which code needs to be generated
     code: Optional[str] = Field(None, title="Code", description="The generated code. Do not include non-code content in this field.")
-
+    
 
 class CoderResponse(BaseModel):
     code_design_description: str  # The design description for which code needs to be generated
@@ -215,7 +219,7 @@ user_message = UserMessage(role="user",
             )
 
 # Extract the assigned function description from AgentState_CAb
-assigned_func_des = state_s2['list_sub_func_dsc'][0]
+assigned_func_des = state_s2['list_sub_func_des'][0]
 
 # Extract the assigned file name using the 'extract_filename' function
 assigned_file = extract_filename(assigned_func_des)
@@ -230,7 +234,8 @@ state = AgentState_Coder(
     messages=[user_message],
     count_invocations=0,
     human_input_special_note='',
-    state_CAb=state_s2
+    state_CAb=state_s2,
+    dir_manager=state_s2['dir_manager']
 )
 
 # Define a configuration dictionary

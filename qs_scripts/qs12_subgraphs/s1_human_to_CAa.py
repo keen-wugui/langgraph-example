@@ -5,11 +5,12 @@
 from shared_states import * 
 
 # %% 
+from dir_manager import DirManager, dir_manager
 
 # from qs1 import AgentState1, GraphConfig, coder
 # from qs1 import extract_code_from_output
 from langgraph.graph import StateGraph, END
-
+import json
 from typing import TypedDict, Literal
 class GraphConfig(TypedDict):
     model_name: Literal["anthropic", "openai"]
@@ -36,8 +37,27 @@ class AgentResponse_CAa(BaseModel):
     folder_structure: str  = Field(..., title="Folder Structure", description="The folder structure designed by the assistant.")
     design_description: str = Field(..., title="Design Description", description="Description of the design decisions made by the assistant.")
 
+class AddFile(BaseModel):
+    file_path: str
+    file_name: str
+    file_content: str
+
+class RemoveFile(BaseModel):
+    file_path: str
+    file_name: str
+
+class OverwriteFile(BaseModel):
+    file_path: str
+    file_name: str
+    file_content: str
+class UseDirManager(BaseModel):
+    add_file: AddFile = Field(None, title="Add File", description="Add a file to the directory.")
+    remove_file: RemoveFile = Field(None, title="Remove File", description="Remove a file from the directory.")
+    overwrite_file: OverwriteFile = Field(None, title="Overwrite File", description="Overwrite the content of a file in the directory.")
+
+
 # passing the pydantic object as a tool for the model to use 
-tools = [AgentResponse_CAa]
+tools = [AgentResponse_CAa, UseDirManager]
 
 
 # %% graph state 
@@ -48,6 +68,8 @@ class AgentState12_CAa(BaseModel):
     agentResponse_CAa:  Optional[AgentResponse_CAa] = None 
     count_invocations: int = 0
     human_input_special_note: str = ''
+
+    dir_manager: DirManager = None
 
 # %% node
 # Subgraph node: Handles input from the user and designs the NEXTJS14 architecture
@@ -66,7 +88,7 @@ def coder_architect_A(state: AgentState12_CAa, config: dict) -> AgentState12_CAa
 
     # Create a prompt template that structures the assistant's responses
     prompt = PromptTemplate(
-        template="{system_prompt}\n\n{chat_history}\n\nHuman: {human_input}\n\nAssistant: Please provide your response, including any code if applicable. Respond using the tool: AgentResponse_CAa.",
+        template="{system_prompt}\n\n{chat_history}\n\nHuman: {human_input}\n\nAssistant: Please provide your response, including any code if applicable. Respond using the tool: AgentResponse_CAa. Use the tool: UseDirManager to add, remove, or overwrite files in the directory.",
         input_variables=["system_prompt", "chat_history", "human_input"]
     )
 
@@ -109,6 +131,8 @@ def coder_architect_A(state: AgentState12_CAa, config: dict) -> AgentState12_CAa
             # state.agentResponse_CAa = architect_response_tool(**tool_call["args"])
             this_agentResponse_CAa = AgentResponse_CAa(**tool_call["args"])
             print('architect_response_tool successfully generated') 
+        if tool_call["name"] == 'UseDirManager':
+            print('UseDirManager tool called')
 
     # Return the updated state to include the new response and message history
     return {
@@ -176,11 +200,12 @@ class UserMessage(BaseMessage):
     type: str = "user"
 
 # Example user message
-user_question = "Design a folder structure for a Next.js project with authentication and a blog system."
+tree_dict_str = json.dumps(dir_manager.get_tree_structure(), indent=2)
+user_question = f"Design a Next.js project with authentication and a blog system, with the provided directory: {tree_dict_str}."
 user_message = UserMessage(role="user", content=user_question)
 
 # Initialize the state for Code Architect A with a sequence of messages
-state = AgentState12_CAa(messages=[user_message])
+state = AgentState12_CAa(messages=[user_message], dir_manager=dir_manager)
 
 # Define a configuration dictionary
 config = {"configurable": {"model_name": "openai"}}
