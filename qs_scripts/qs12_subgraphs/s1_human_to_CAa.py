@@ -259,29 +259,32 @@ class UserMessage(BaseMessage):
     type: str = "user"
 
 # Example user message
-tree_dict_str = json.dumps(dir_manager.get_tree_structure(), indent=2)
-user_question = f"""
-Design a Next.js project with authentication and a blog system, with the provided directory: {tree_dict_str}.
-Remove folder named 'hello' if exists. 
-Add a page "homepage" in /app with the nextjs format.
-"""
-user_message = UserMessage(role="user", content=user_question)
+import os
+if int(os.getenv('run_local_test', 1)):
 
-# Initialize the state for Code Architect A with a sequence of messages
-state = AgentState12_CAa(messages=[user_message], dir_manager=dir_manager)
+    tree_dict_str = json.dumps(dir_manager.get_tree_structure(), indent=2)
+    user_question = f"""
+    Design a Next.js project with authentication and a blog system, with the provided directory: {tree_dict_str}.
+    Remove folder named 'hello' if exists. 
+    Add a page "homepage" in /app with the nextjs format.
+    """
+    user_message = UserMessage(role="user", content=user_question)
 
-# Define a configuration dictionary
-config = {"configurable": {"model_name": "openai"}}
+    # Initialize the state for Code Architect A with a sequence of messages
+    state = AgentState12_CAa(messages=[user_message], dir_manager=dir_manager)
 
-# Invoke the graph, running the process through Code Architect A
-new_state = graph.invoke(state, config)
+    # Define a configuration dictionary
+    config = {"configurable": {"model_name": "openai"}}
+
+    # Invoke the graph, running the process through Code Architect A
+    new_state = graph.invoke(state, config)
 
 
-# %%
-new_state
-# %%
-new_state['agentResponse_CAa']
-# %%
-# new_state['agentResponse_CAa'].content
-# %%
-print(new_state['agentResponse_CAa'].folder_structure_dict)
+    # %%
+    new_state
+    # %%
+    new_state['agentResponse_CAa']
+    # %%
+    # new_state['agentResponse_CAa'].content
+    # %%
+    print(new_state['agentResponse_CAa'].folder_structure_dict)

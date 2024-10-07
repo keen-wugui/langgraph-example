@@ -209,12 +209,7 @@ graph_builder.add_edge("retrying_node", "coder")
 graph = graph_builder.compile()
 
 # %% test the graph
-try: 
-    state_s2
-except:
-    from s2_CAa_to_CAb import new_state as state_s2
 
-import re
 
 def extract_filename(description):
     # Regular expression to match the file name (ends with .js, .ts, .py, etc.)
@@ -237,68 +232,77 @@ class UserMessage(BaseMessage):
     content: str
     type: str = "user"
 
-# Initialize the state for Coder
-user_message = UserMessage(role="user", 
-                            content="Please generate the code for the assigned file."
-            )
+import os
+if int(os.getenv('run_local_test', 1)):
+    try: 
+        state_s2
+    except:
+        from s2_CAa_to_CAb import new_state as state_s2
 
-# Extract the assigned function description from AgentState_CAb
-assigned_func_des = state_s2['list_sub_func_des'][0]
+    import re
 
-# Get the sub-folder keys from the assigned directory tree 
-# temporary manually assigned <-- change later 
-sub_folder_keys = list(get_immediate_subfolders(state_s2['assigned_subtree_b']))
-assigned_subtree_c = get_immediate_subfolders(state_s2['assigned_subtree_b'])[sub_folder_keys[1]]
+    # Initialize the state for Coder
+    user_message = UserMessage(role="user", 
+                                content="Please generate the code for the assigned file."
+                )
 
-# temporary manually fixaed path <-- change later 
-# ref: new_state['dir_manager'].root_directory = path to 'my-nextjs-app-5'
-assigned_file_path = 'app/homepage' # <-- must not have '/' at the start
+    # Extract the assigned function description from AgentState_CAb
+    assigned_func_des = state_s2['list_sub_func_des'][0]
 
-# Extract the assigned file name using the 'extract_filename' function
-assigned_file = extract_filename(str(assigned_subtree_c))
+    # Get the sub-folder keys from the assigned directory tree 
+    # temporary manually assigned <-- change later 
+    sub_folder_keys = list(get_immediate_subfolders(state_s2['assigned_subtree_b']))
+    assigned_subtree_c = get_immediate_subfolders(state_s2['assigned_subtree_b'])[sub_folder_keys[1]]
 
-# get existing code from the assigned file
-existing_code = state_s2['dir_manager'].get_existing_code(directory=assigned_file_path, name=assigned_file)
-# Initialize 'code_design_description' from 'state_s2.main_func_des'
-code_design_description = state_s2['my_func_des']
+    # temporary manually fixaed path <-- change later 
+    # ref: new_state['dir_manager'].root_directory = path to 'my-nextjs-app-5'
+    assigned_file_path = 'app/homepage' # <-- must not have '/' at the start
 
-state = AgentState_Coder(
-    assigned_func_des=assigned_func_des,
-    assigned_file_path=assigned_file_path,  
-    assigned_file=assigned_file,
-    assigned_subtree_c=assigned_subtree_c,
-    code_design_description=code_design_description,
-    messages=[user_message],
-    count_invocations=0,
-    human_input_special_note='',
-    existing_code=existing_code,
-    state_CAb=state_s2,
-    dir_manager=state_s2['dir_manager']
+    # Extract the assigned file name using the 'extract_filename' function
+    assigned_file = extract_filename(str(assigned_subtree_c))
 
-)
+    # get existing code from the assigned file
+    existing_code = state_s2['dir_manager'].get_existing_code(directory=assigned_file_path, name=assigned_file)
+    # Initialize 'code_design_description' from 'state_s2.main_func_des'
+    code_design_description = state_s2['my_func_des']
 
-# Define a configuration dictionary
-config = {"configurable": {"model_name": "openai"}}
+    state = AgentState_Coder(
+        assigned_func_des=assigned_func_des,
+        assigned_file_path=assigned_file_path,  
+        assigned_file=assigned_file,
+        assigned_subtree_c=assigned_subtree_c,
+        code_design_description=code_design_description,
+        messages=[user_message],
+        count_invocations=0,
+        human_input_special_note='',
+        existing_code=existing_code,
+        state_CAb=state_s2,
+        dir_manager=state_s2['dir_manager']
 
-# Invoke the graph, running the process through Coder
-new_state = graph.invoke(state, config)
+    )
 
-# %% 
-print(new_state['code'])
+    # Define a configuration dictionary
+    config = {"configurable": {"model_name": "openai"}}
 
-# %%
-print(new_state['code_design_description'])
+    # Invoke the graph, running the process through Coder
+    new_state = graph.invoke(state, config)
 
-# %%
-get_immediate_subfolders(state_s2['assigned_subtree_b'])
+    # %% 
+    print(new_state['code'])
 
-# %% 
+    # %%
+    print(new_state['code_design_description'])
 
-sub_folder_keys
-# %% 
-get_immediate_subfolders(state_s2['assigned_subtree_b'])[sub_folder_keys[1]]
-# %%
-new_state['code']
-# %%
-new_state['dir_manager'].get_tree_structure()
+    # %%
+    get_immediate_subfolders(state_s2['assigned_subtree_b'])
+
+    # %% 
+
+    sub_folder_keys
+    # %% 
+    get_immediate_subfolders(state_s2['assigned_subtree_b'])[sub_folder_keys[1]]
+    # %%
+    new_state['code']
+    # %%
+    new_state['dir_manager'].get_tree_structure()
 # %%

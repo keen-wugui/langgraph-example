@@ -171,10 +171,6 @@ graph_builder.add_edge("retrying_node", "coder_architect_B")
 graph = graph_builder.compile()
 
 # %% test the graph
-try: 
-    state_s1
-except:
-    from s1_human_to_CAa import new_state as state_s1
 
 
 class UserMessage(BaseMessage):
@@ -184,46 +180,54 @@ class UserMessage(BaseMessage):
 
 # Example output from CAa
 # master_design_description = "This is the design description of the Next.js project with authentication and a blog system."
-master_design_description = state_s1['agentResponse_CAa'].master_design_description
+import os
+if int(os.getenv('run_local_test', 1)):
+    try: 
+        state_s1
+    except:
+        from s1_human_to_CAa import new_state as state_s1
 
-master_dir_tree = state_s1['dir_manager'].get_tree_structure()
 
-# Assigned directory to CAb
-# assigned_subtree_b = """
-# │   │   ├── blog/
-# │   │   │   ├── BlogList.js
-# │   │   │   ├── BlogPost.js
-# │   │   │   └── BlogEditor.js
-# """
-assigned_subtree_b = state_s1['dir_manager'].get_tree_structure()['app']
+    master_design_description = state_s1['agentResponse_CAa'].master_design_description
 
-# Example user message
-user_message = UserMessage(role="user", content="")
+    master_dir_tree = state_s1['dir_manager'].get_tree_structure()
 
-# Initialize the state for Code Architect B
-state = AgentState_CAb(
-    master_design_description=master_design_description,
-    master_dir_tree=master_dir_tree,
-    assigned_subtree_b=assigned_subtree_b,
-    messages=[user_message],
-    dir_manager=state_s1['dir_manager']
-)
+    # Assigned directory to CAb
+    # assigned_subtree_b = """
+    # │   │   ├── blog/
+    # │   │   │   ├── BlogList.js
+    # │   │   │   ├── BlogPost.js
+    # │   │   │   └── BlogEditor.js
+    # """
+    assigned_subtree_b = state_s1['dir_manager'].get_tree_structure()['app']
 
-# Define a configuration dictionary
-config = {"configurable": {"model_name": "openai"}}
+    # Example user message
+    user_message = UserMessage(role="user", content="")
 
-# Invoke the graph, running the process through Code Architect B
-new_state = graph.invoke(state, config)
+    # Initialize the state for Code Architect B
+    state = AgentState_CAb(
+        master_design_description=master_design_description,
+        master_dir_tree=master_dir_tree,
+        assigned_subtree_b=assigned_subtree_b,
+        messages=[user_message],
+        dir_manager=state_s1['dir_manager']
+    )
 
-# Output the results
-print("---Final State---")
-print("Main Functional Description:")
-print(new_state['my_func_des'])
+    # Define a configuration dictionary
+    config = {"configurable": {"model_name": "openai"}}
 
-# %%
-# Get the tree structure once to avoid redundant calls
-tree_dict = state_s1['dir_manager'].get_tree_structure()
-get_immediate_subfolders(tree_dict).keys()
-# %% selected to go to the next sub graph s3
-tree_dict['app']['homepage']
+    # Invoke the graph, running the process through Code Architect B
+    new_state = graph.invoke(state, config)
+
+    # Output the results
+    print("---Final State---")
+    print("Main Functional Description:")
+    print(new_state['my_func_des'])
+
+    # %%
+    # Get the tree structure once to avoid redundant calls
+    tree_dict = state_s1['dir_manager'].get_tree_structure()
+    get_immediate_subfolders(tree_dict).keys()
+    # %% selected to go to the next sub graph s3
+    tree_dict['app']['homepage']
 # %%
