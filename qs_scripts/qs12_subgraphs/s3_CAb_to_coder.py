@@ -2,9 +2,9 @@
 from shared_states import * 
 
 # %% import necessary modules
-from dir_manager import DirManager
+from dir_manager import DirManager, get_immediate_subfolders
 from typing import Sequence, List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from langgraph.graph import StateGraph, END
 from langchain.prompts import PromptTemplate
 from langchain.schema import BaseMessage
@@ -12,24 +12,30 @@ from my_agent.utils.nodes import _get_model
 from langchain_core.messages import ToolMessage
 
 from s2_CAa_to_CAb import AgentState_CAb
-
+import os
 # %% graph state
 # Define the state for the code generator interaction (Coder)
 class AgentState_Coder(BaseModel):
-    assigned_func_des: str  # from agentResponse_CAb.main_func_des
-    assigned_file: str  # from agentResponse_CAb.assigned_dir_tree
+    assigned_func_des: str  
+    assigned_file: str  # from agentResponse_CAb.assigned_subtree_b
+    assigned_file_path: str = ''  # from agentResponse_CAb.assigned_subtree_b
+    assigned_subtree_c    : dict = {} # from agentResponse_CAb.assigned_subtree_b
     state_CAb: AgentState_CAb = None
+    existing_code: Optional[str] = None  # The existing code to be modified
+    
 
     messages: Sequence[BaseMessage]
     count_invocations: int = 0
     human_input_special_note: str = ''
     dir_manager: DirManager = None
-    
+
+
 
     # for the coder to generate 
     code_design_description: str  # The design description for which code needs to be generated
     code: Optional[str] = Field(None, title="Code", description="The generated code. Do not include non-code content in this field.")
     
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 class CoderResponse(BaseModel):
     code_design_description: str  # The design description for which code needs to be generated
@@ -65,7 +71,10 @@ def coder(state: AgentState_Coder, config: dict) -> AgentState_Coder:
             "Master Design Description:\n{master_design_description}\n\n"
             "Master Directory Tree:\n{master_dir_tree}\n\n"
             "Assigned Function Description:\n{assigned_func_des}\n\n"
+            "Assigned Subtree:\n{assigned_subtree_c}\n\n"
             "Assigned File:\n{assigned_file}\n\n"
+            "existing_code:\n{existing_code}\n\n"
+            "---\n"
             "Human: {human_input}\n\n"
             "Assistant: Please provide the generated code."
         ),
@@ -76,7 +85,9 @@ def coder(state: AgentState_Coder, config: dict) -> AgentState_Coder:
             "master_dir_tree",
             "assigned_func_des",
             "assigned_file",
-            "human_input"
+            "human_input",
+            "existing_code",
+            "assigned_subtree_c"
         ]
     )
 
@@ -111,7 +122,9 @@ def coder(state: AgentState_Coder, config: dict) -> AgentState_Coder:
         'master_dir_tree': master_dir_tree,
         'assigned_func_des': assigned_func_des,
         'assigned_file': assigned_file,
-        'human_input': human_input
+        'human_input': human_input,
+        'existing_code': state.existing_code,
+        'assigned_subtree_c': state.assigned_subtree_c
     })
 
     # Extract content from the model's response
@@ -132,6 +145,17 @@ def coder(state: AgentState_Coder, config: dict) -> AgentState_Coder:
         if tool_call["name"] == 'CoderResponse':
             this_coderResponse = CoderResponse(**tool_call["args"])
             print('CoderResponse successfully generated') 
+
+            # overwrite the code 
+            state.dir_manager.overwrite_file(directory=os.path.join(state.dir_manager.root_directory, state.assigned_file_path), 
+                                                name="page.tsx", 
+                                                content=this_coderResponse.code
+                                                )
+            # this_dir_manager = DirManager(project_params_path="project_params.json")
+
+            # assigned_file_path = 'app/homepage'
+            # this_dir_manager.overwrite_file(directory=os.path.join(this_dir_manager.root_directory, assigned_file_path), name="page.tsx", content="print('Hello, Universe!x')")
+
 
     # Update the code in the state
     return {
@@ -221,21 +245,36 @@ user_message = UserMessage(role="user",
 # Extract the assigned function description from AgentState_CAb
 assigned_func_des = state_s2['list_sub_func_des'][0]
 
-# Extract the assigned file name using the 'extract_filename' function
-assigned_file = extract_filename(assigned_func_des)
+# Get the sub-folder keys from the assigned directory tree 
+# temporary manually assigned <-- change later 
+sub_folder_keys = list(get_immediate_subfolders(state_s2['assigned_subtree_b']))
+assigned_subtree_c = get_immediate_subfolders(state_s2['assigned_subtree_b'])[sub_folder_keys[1]]
 
+# temporary manually fixaed path <-- change later 
+# ref: new_state['dir_manager'].root_directory = path to 'my-nextjs-app-5'
+assigned_file_path = 'app/homepage' # <-- must not have '/' at the start
+
+# Extract the assigned file name using the 'extract_filename' function
+assigned_file = extract_filename(str(assigned_subtree_c))
+
+# get existing code from the assigned file
+existing_code = state_s2['dir_manager'].get_existing_code(directory=assigned_file_path, name=assigned_file)
 # Initialize 'code_design_description' from 'state_s2.main_func_des'
-code_design_description = state_s2['main_func_des']
+code_design_description = state_s2['my_func_des']
 
 state = AgentState_Coder(
     assigned_func_des=assigned_func_des,
+    assigned_file_path=assigned_file_path,  
     assigned_file=assigned_file,
+    assigned_subtree_c=assigned_subtree_c,
     code_design_description=code_design_description,
     messages=[user_message],
     count_invocations=0,
     human_input_special_note='',
+    existing_code=existing_code,
     state_CAb=state_s2,
     dir_manager=state_s2['dir_manager']
+
 )
 
 # Define a configuration dictionary
@@ -250,4 +289,16 @@ print(new_state['code'])
 # %%
 print(new_state['code_design_description'])
 
+# %%
+get_immediate_subfolders(state_s2['assigned_subtree_b'])
+
+# %% 
+
+sub_folder_keys
+# %% 
+get_immediate_subfolders(state_s2['assigned_subtree_b'])[sub_folder_keys[1]]
+# %%
+new_state['code']
+# %%
+new_state['dir_manager'].get_tree_structure()
 # %%

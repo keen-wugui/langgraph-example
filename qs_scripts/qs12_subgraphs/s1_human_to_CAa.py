@@ -19,8 +19,9 @@ class GraphConfig(TypedDict):
 
 # %% compile subgraph 1 for Code Architect A
 from langgraph.graph import StateGraph, END
-from typing import Sequence, Literal
-from pydantic import BaseModel
+from typing import Sequence, Literal, Union
+from pydantic import BaseModel, ConfigDict, Field, validator, ValidationError, field_validator
+
 from langchain.prompts import PromptTemplate
 from my_agent.utils.nodes import call_model, should_continue, tool_node, _get_model
 from langchain.output_parsers import PydanticOutputParser
@@ -31,33 +32,36 @@ class GraphConfig(TypedDict):
     model_name: Literal["anthropic", "openai"]
 
 # %% 
-from pydantic import ValidationError, Field
+
 class AgentResponse_CAa(BaseModel):
     content: str
-    folder_structure: str  = Field(..., title="Folder Structure", description="The folder structure designed by the assistant.")
-    design_description: str = Field(..., title="Design Description", description="Description of the design decisions made by the assistant.")
+    folder_structure_dict: Union[str, dict] = Field(
+        ...,
+        title="Folder Structure",
+        description="The folder structure designed by the assistant in nested dict/json format."
+    )
+    master_design_description: str = Field(
+        ...,
+        title="Master Design Description",
+        description="Description of the design decisions made by the assistant."
+    )
 
-class AddFile(BaseModel):
-    file_path: str
-    file_name: str
-    file_content: str
-
-class RemoveFile(BaseModel):
-    file_path: str
-    file_name: str
-
-class OverwriteFile(BaseModel):
-    file_path: str
-    file_name: str
-    file_content: str
-class UseDirManager(BaseModel):
-    add_file: AddFile = Field(None, title="Add File", description="Add a file to the directory.")
-    remove_file: RemoveFile = Field(None, title="Remove File", description="Remove a file from the directory.")
-    overwrite_file: OverwriteFile = Field(None, title="Overwrite File", description="Overwrite the content of a file in the directory.")
-
+    @field_validator('folder_structure_dict', mode='before')
+    def parse_folder_structure_dict(cls, v):
+        if isinstance(v, str):
+            try:
+                # Attempt to parse the JSON string into a dictionary
+                return json.loads(v)
+            except json.JSONDecodeError as e:
+                raise ValueError('folder_structure_dict must be a valid JSON string') from e
+        elif isinstance(v, dict):
+            # If it's already a dictionary, return it as is
+            return v
+        else:
+            raise TypeError('folder_structure_dict must be a dict or a JSON string representing a dict')
 
 # passing the pydantic object as a tool for the model to use 
-tools = [AgentResponse_CAa, UseDirManager]
+tools = [AgentResponse_CAa]
 
 
 # %% graph state 
@@ -65,11 +69,28 @@ tools = [AgentResponse_CAa, UseDirManager]
 from typing import Optional, Sequence
 class AgentState12_CAa(BaseModel):
     messages: Annotated[Sequence[BaseMessage], add_messages]
+
     agentResponse_CAa:  Optional[AgentResponse_CAa] = None 
+    content: str = None
+    folder_structure_dict: Union[str, dict] = Field(
+        default=None,
+        title="Folder Structure",
+        description="The folder structure designed by the assistant in nested dict/json format."
+    )
+    master_design_description: str = Field(
+        default=None,
+        title="Master Design Description",
+        description="Description of the design decisions made by the assistant."
+    )
+
     count_invocations: int = 0
+    should_retry: bool = False
     human_input_special_note: str = ''
 
     dir_manager: DirManager = None
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    
 
 # %% node
 # Subgraph node: Handles input from the user and designs the NEXTJS14 architecture
@@ -127,10 +148,36 @@ def coder_architect_A(state: AgentState12_CAa, config: dict) -> AgentState12_CAa
     for tool_call in response.tool_calls:
         print('---tool_call---')
         print(tool_call)
+        print('\n---\n')
+
         if tool_call["name"] == 'AgentResponse_CAa':
-            # state.agentResponse_CAa = architect_response_tool(**tool_call["args"])
-            this_agentResponse_CAa = AgentResponse_CAa(**tool_call["args"])
-            print('architect_response_tool successfully generated') 
+            try:
+                print('---AgentResponse_CAa tool called---')
+                print(tool_call["args"])
+                print('\n---\n')
+                this_agentResponse_CAa = AgentResponse_CAa(**tool_call["args"])
+                # comparing the new tree with the existing tree (get from folder)
+                print('---comparing new tree---')
+                state.dir_manager.compare_new_tree(this_agentResponse_CAa.folder_structure_dict)
+                print('architect_response_tool successfully generated') 
+
+            except ValidationError as e:
+                print('---ValidationError---')
+                print(e)
+                state.human_input_special_note = '''
+Please make sure the folder structure (folder_structure_dict) is in the correct format (nested dict/json) and the master design description is a string.
+'''
+                state.should_retry = True
+                break 
+            except Exception as e:
+                print('---Exception---')
+                print(e)
+                state.human_input_special_note = f'''Please review error in the tool_call["args"]. Error: {e}'''
+                state.should_retry = True
+                break
+
+            
+        
         if tool_call["name"] == 'UseDirManager':
             print('UseDirManager tool called')
 
@@ -138,6 +185,15 @@ def coder_architect_A(state: AgentState12_CAa, config: dict) -> AgentState12_CAa
     return {
         "messages": [assistant_message],
         "agentResponse_CAa": this_agentResponse_CAa,
+        'dir_manager': state.dir_manager,
+        'human_input_special_note': state.human_input_special_note,
+        'should_retry': state.should_retry,
+
+        'content': this_agentResponse_CAa.content,
+        'folder_structure_dict': this_agentResponse_CAa.folder_structure_dict,
+        'master_design_description': this_agentResponse_CAa.master_design_description,
+
+
     }
 
 # %% retrying node 
@@ -146,17 +202,20 @@ def retrying_node(state: AgentState12_CAa) -> AgentState12_CAa:
     print('---retry---')
     print('Incrementing count_invocations:', state.count_invocations)
     # state.human_input_special_note = 'Please use tool: architect_response_tool to provide the folder structure and design description.'
-    state.human_input_special_note += 'Please use tool: AgentResponse_CAa to provide the folder structure and design description.'
+    state.human_input_special_note += 'Please use tool: AgentResponse_CAa to provide the folder structure and (master) design description.'
     
     return {
         'count_invocations': state.count_invocations,
-        'human_input_special_note': state.human_input_special_note
+        'human_input_special_note': state.human_input_special_note,
+        'should_retry': False,
     }
 
 # %% should_continue
 def should_continue(state: AgentState12_CAa) -> bool:
     if state.count_invocations > 2:
         return 'end'
+    if state.should_retry:
+        return 'retry'
     if state.agentResponse_CAa is None:
         return 'retry'
 
@@ -201,7 +260,11 @@ class UserMessage(BaseMessage):
 
 # Example user message
 tree_dict_str = json.dumps(dir_manager.get_tree_structure(), indent=2)
-user_question = f"Design a Next.js project with authentication and a blog system, with the provided directory: {tree_dict_str}."
+user_question = f"""
+Design a Next.js project with authentication and a blog system, with the provided directory: {tree_dict_str}.
+Remove folder named 'hello' if exists. 
+Add a page "homepage" in /app with the nextjs format.
+"""
 user_message = UserMessage(role="user", content=user_question)
 
 # Initialize the state for Code Architect A with a sequence of messages
@@ -219,6 +282,6 @@ new_state
 # %%
 new_state['agentResponse_CAa']
 # %%
-new_state['agentResponse_CAa'].content
+# new_state['agentResponse_CAa'].content
 # %%
-print(new_state['agentResponse_CAa'].folder_structure)
+print(new_state['agentResponse_CAa'].folder_structure_dict)

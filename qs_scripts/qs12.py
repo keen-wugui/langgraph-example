@@ -62,6 +62,58 @@ class GraphConfig(TypedDict):
     model_name: Literal["anthropic", "openai"]
 
 
+# %% node : coder_architect_A : gets user input and designs the NEXTJS14 architecture
+
+def coder_architect_A(state: AgentState12_CAb, config: dict) -> AgentState12_CAb:
+    # Get the messages from the state
+    messages = state.messages
+    system_prompt = "You are a helpful assistant that can write code."  # Define your system prompt
+
+    # Prepend system prompt to messages
+    messages = [{"role": "system", "content": system_prompt}] + messages
+    
+    # Get the model name from config or default to "openai"
+    model_name = config.get('configurable', {}).get("model_name", "openai")
+    model = _get_model(model_name)  # Replace with the appropriate model getter
+    
+    # Create a prompt template for the conversation
+    prompt = PromptTemplate(
+        template="{system_prompt}\n\n{chat_history}\n\nHuman: {human_input}\n\nAssistant: Please provide your response, including any code if applicable.",
+        input_variables=["system_prompt", "chat_history", "human_input"]
+    )
+
+    # Format chat history by extracting roles and content from the message sequence
+    chat_history = ""
+    for m in messages[1:-1]:
+        # Check if the message is a dictionary with 'role' and 'content'
+        if isinstance(m, dict):
+            chat_history += f"{m['role']}: {m['content']}\n"
+        # Check if it's an AIMessage or a different object and use 'content' only
+        elif hasattr(m, 'content'):
+            chat_history += f"{m.__class__.__name__}: {m.content}\n"
+    
+    # Access the last message content (human input)
+    human_input = messages[-1]['content'] if isinstance(messages[-1], dict) else messages[-1].content
+
+    # If the previous execution had an error, add a message to the chat history
+    if state.exec_has_error:
+        error_message = state.exec_error_message
+        chat_history += f"\n\nPrevious execution had an error. Please fix the code and try again. Error message: {error_message}"
+    
+    # Format the final prompt
+    formatted_prompt = prompt.format(
+        system_prompt=system_prompt,
+        chat_history=chat_history,
+        human_input=human_input
+    )
+    
+    # Invoke the model with the formatted prompt
+    response = model.invoke(formatted_prompt)
+    
+    # Extract the content from the model response
+    response_content = response.content if hasattr(response, 'content') else str(response)
+    
+    # Append the assistant's response
 
 # %% node : coder (superseding the one from qs1.py)
 from langchain.prompts import PromptTemplate

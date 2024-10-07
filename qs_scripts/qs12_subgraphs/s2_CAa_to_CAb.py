@@ -2,9 +2,9 @@
 from shared_states import * 
 
 # %% import necessary modules
-from dir_manager import DirManager
+from dir_manager import DirManager, get_immediate_subfolders
 from typing import Sequence, List, Literal, Optional, Annotated
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from langgraph.graph import StateGraph, END
 from langchain.prompts import PromptTemplate
 from langchain.schema import BaseMessage
@@ -14,7 +14,7 @@ from langchain_core.messages import ToolMessage
 
 # %% define the tool for AgentResponse_CAb
 class AgentResponse_CAb(BaseModel):
-    main_func_des: str = Field(..., title="Main Functional Description", description="The functional description of the assigned part of the code directory.")
+    my_func_des: str = Field(..., title="Main Functional Description", description="The functional description of the assigned part of the code directory.")
     list_sub_func_des: List[str] = Field(..., title="List of Sub Functional Descriptions", description="List of sub-functional descriptions for subdirectories or code files in the assigned directory.")
 
 # Passing the Pydantic object as a tool for the model to use
@@ -24,15 +24,17 @@ tools = [AgentResponse_CAb]
 # Define the state for the code architect interaction (Architect B)
 class AgentState_CAb(BaseModel):
     master_design_description: str  # from agentResponse_CAa.design_description
-    master_dir_tree: str            # from agentResponse_CAa.folder_structure
-    assigned_dir_tree: str          # the tree structure part assigned to one CAb
-    main_func_des: Optional[str] = None             # the functional description of the assigned part
+    master_dir_tree: dict            # from agentResponse_CAa.folder_structure
+    assigned_subtree_b: dict          # the tree structure part assigned to one CAb
+    my_func_des: Optional[str] = None             # the functional description of the assigned part
     list_sub_func_des: List[str] = []    # list of sub-functional descriptions for subdirectories or code files in the assigned directory
     
     messages: Sequence[BaseMessage]
     count_invocations: int = 0
     human_input_special_note: str = ''
     dir_manager: DirManager = None
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 # %% node
 # Subgraph node: Handles input from the user and generates the main functional description
@@ -70,17 +72,17 @@ def coder_architect_B(state: AgentState_CAb, config: dict) -> AgentState_CAb:
     # Extract the human input from the last message in the sequence
     human_input = messages[-1]['content'] if isinstance(messages[-1], dict) else messages[-1].content
 
-    # Include master_design_description, master_dir_tree, assigned_dir_tree in the human input
+    # Include master_design_description, master_dir_tree, assigned_subtree_b in the human input
     additional_context = f"""
 
 Master Design Description:
 {state.master_design_description}
 
 Master Directory Tree:
-{state.master_dir_tree}
+{str(state.master_dir_tree)}
 
 Assigned Directory Tree:
-{state.assigned_dir_tree}
+{str(state.assigned_subtree_b)}
 """
 
     if state.human_input_special_note != '':
@@ -116,8 +118,8 @@ Assigned Directory Tree:
     return AgentState_CAb(
         master_design_description=state.master_design_description,
         master_dir_tree=state.master_dir_tree,
-        assigned_dir_tree=state.assigned_dir_tree,
-        main_func_des=this_agentResponse_CAb.main_func_des if this_agentResponse_CAb else None,
+        assigned_subtree_b=state.assigned_subtree_b,
+        my_func_des=this_agentResponse_CAb.my_func_des if this_agentResponse_CAb else None,
         list_sub_func_des=this_agentResponse_CAb.list_sub_func_des if this_agentResponse_CAb else [],
         messages=[assistant_message],
         count_invocations=state.count_invocations,
@@ -136,7 +138,7 @@ def retrying_node(state: AgentState_CAb) -> AgentState_CAb:
 def should_continue(state: AgentState_CAb) -> str:
     if state.count_invocations > 2:
         return 'end'
-    if state.main_func_des is None:
+    if state.my_func_des is None:
         return 'retry'
     else:
         state.count_invocations += 1
@@ -182,30 +184,18 @@ class UserMessage(BaseMessage):
 
 # Example output from CAa
 # master_design_description = "This is the design description of the Next.js project with authentication and a blog system."
-master_design_description = state_s1['agentResponse_CAa'].design_description
+master_design_description = state_s1['agentResponse_CAa'].master_design_description
 
-# master_dir_tree = """
-# /nextjs-project
-#     /pages
-#         /index.js
-#         /auth
-#             /login.js
-#             /register.js
-#     /components
-#         /Header.js
-#         /Footer.js
-#     /blog
-#         /[postId].js
-# """
-master_dir_tree = state_s1['agentResponse_CAa'].folder_structure
+master_dir_tree = state_s1['dir_manager'].get_tree_structure()
 
 # Assigned directory to CAb
-assigned_dir_tree = """
-│   │   ├── blog/
-│   │   │   ├── BlogList.js
-│   │   │   ├── BlogPost.js
-│   │   │   └── BlogEditor.js
-"""
+# assigned_subtree_b = """
+# │   │   ├── blog/
+# │   │   │   ├── BlogList.js
+# │   │   │   ├── BlogPost.js
+# │   │   │   └── BlogEditor.js
+# """
+assigned_subtree_b = state_s1['dir_manager'].get_tree_structure()['app']
 
 # Example user message
 user_message = UserMessage(role="user", content="")
@@ -214,7 +204,7 @@ user_message = UserMessage(role="user", content="")
 state = AgentState_CAb(
     master_design_description=master_design_description,
     master_dir_tree=master_dir_tree,
-    assigned_dir_tree=assigned_dir_tree,
+    assigned_subtree_b=assigned_subtree_b,
     messages=[user_message],
     dir_manager=state_s1['dir_manager']
 )
@@ -228,6 +218,12 @@ new_state = graph.invoke(state, config)
 # Output the results
 print("---Final State---")
 print("Main Functional Description:")
-print(new_state['main_func_des'])
+print(new_state['my_func_des'])
 
+# %%
+# Get the tree structure once to avoid redundant calls
+tree_dict = state_s1['dir_manager'].get_tree_structure()
+get_immediate_subfolders(tree_dict).keys()
+# %% selected to go to the next sub graph s3
+tree_dict['app']['homepage']
 # %%
