@@ -1,8 +1,12 @@
 # %% import shared 
 from shared_states import * 
+from shared_states import BaseState
 
 # %% import necessary modules
+import re
 from dir_manager import DirManager, get_immediate_subfolders
+from state_manager import StateManager
+state_manager = StateManager()
 from typing import Sequence, List, Optional
 from pydantic import BaseModel, Field, ConfigDict
 from langgraph.graph import StateGraph, END
@@ -15,27 +19,20 @@ from s2_CAa_to_CAb import AgentState_CAb
 import os
 # %% graph state
 # Define the state for the code generator interaction (Coder)
-class AgentState_Coder(BaseModel):
-    assigned_func_des: str  
-    assigned_file: str  # from agentResponse_CAb.assigned_subtree_b
-    assigned_file_path: str = ''  # from agentResponse_CAb.assigned_subtree_b
-    assigned_subtree_c    : dict = {} # from agentResponse_CAb.assigned_subtree_b
-    state_CAb: AgentState_CAb = None
-    existing_code: Optional[str] = None  # The existing code to be modified
-    
-
-    messages: Sequence[BaseMessage]
-    count_invocations: int = 0
-    human_input_special_note: str = ''
-    dir_manager: DirManager = None
-
-
-
-    # for the coder to generate 
-    code_design_description: str  # The design description for which code needs to be generated
-    code: Optional[str] = Field(None, title="Code", description="The generated code. Do not include non-code content in this field.")
-    
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+# AgentState_Coder class inheriting from BaseState
+class AgentState_Coder(BaseState):
+    assigned_func_des: str
+    assigned_file: str  # From agentResponse_CAb.assigned_subtree_b
+    assigned_file_path: str = ''  # From agentResponse_CAb.assigned_subtree_b
+    assigned_subtree_c: dict = {}  # From agentResponse_CAb.assigned_subtree_b
+    state_CAb: Optional[AgentState_CAb] = None
+    existing_code: Optional[str] = None  # Existing code to be modified
+    code_design_description: str  # Design description for code generation
+    code: Optional[str] = Field(
+        None,
+        title="Code",
+        description="The generated code. Do not include non-code content in this field."
+    )
 
 class CoderResponse(BaseModel):
     code_design_description: str  # The design description for which code needs to be generated

@@ -1,0 +1,1 @@
+{"id": "d6632f16-8ecf-48d4-9c71-9b4a1b7346c0", "data": {"nodes": [1, 2, 3], "edges": [{"py/tuple": [1, 2]}, {"py/tuple": [2, 3]}], "attributes": {"color": "blue"}}}

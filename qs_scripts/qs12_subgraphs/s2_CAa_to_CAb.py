@@ -1,8 +1,11 @@
 # %% import shared 
 from shared_states import * 
+from shared_states import BaseState
 
 # %% import necessary modules
 from dir_manager import DirManager, get_immediate_subfolders
+from state_manager import StateManager
+state_manager = StateManager()
 from typing import Sequence, List, Literal, Optional, Annotated
 from pydantic import BaseModel, Field, ConfigDict
 from langgraph.graph import StateGraph, END
@@ -22,19 +25,13 @@ tools = [AgentResponse_CAb]
 
 # %% graph state
 # Define the state for the code architect interaction (Architect B)
-class AgentState_CAb(BaseModel):
-    master_design_description: str  # from agentResponse_CAa.design_description
-    master_dir_tree: dict            # from agentResponse_CAa.folder_structure
-    assigned_subtree_b: dict          # the tree structure part assigned to one CAb
-    my_func_des: Optional[str] = None             # the functional description of the assigned part
-    list_sub_func_des: List[str] = []    # list of sub-functional descriptions for subdirectories or code files in the assigned directory
-    
-    messages: Sequence[BaseMessage]
-    count_invocations: int = 0
-    human_input_special_note: str = ''
-    dir_manager: DirManager = None
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+# AgentState_CAb class inheriting from BaseState
+class AgentState_CAb(BaseState):
+    master_design_description: str  # From agentResponse_CAa.design_description
+    master_dir_tree: dict           # From agentResponse_CAa.folder_structure
+    assigned_subtree_b: dict        # The tree structure part assigned to one CAb
+    my_func_des: Optional[str] = None  # Functional description of the assigned part
+    list_sub_func_des: List[str] = []  # Sub-functional descriptions
 
 # %% node
 # Subgraph node: Handles input from the user and generates the main functional description

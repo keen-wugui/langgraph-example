@@ -2,10 +2,13 @@
 ''' A hierarchical graph '''
 
 # %% import shared 
-from shared_states import * 
-
+from shared_states import  *
+from shared_states import BaseState, DirManager
+dir_manager = DirManager(project_params_path="project_params.json")
 # %% 
-from dir_manager import DirManager, dir_manager
+# from dir_manager import  dir_manager
+from state_manager import StateManager
+state_manager = StateManager()
 
 # from qs1 import AgentState1, GraphConfig, coder
 # from qs1 import extract_code_from_output
@@ -67,30 +70,21 @@ tools = [AgentResponse_CAa]
 # %% graph state 
 # Define the state for the code architect interaction (Architect A)
 from typing import Optional, Sequence
-class AgentState12_CAa(BaseModel):
-    messages: Annotated[Sequence[BaseMessage], add_messages]
-
-    agentResponse_CAa:  Optional[AgentResponse_CAa] = None 
-    content: str = None
+# AgentState12_CAa class inheriting from BaseState
+class AgentState12_CAa(BaseState):
+    agentResponse_CAa: Optional[AgentResponse_CAa] = None
+    content: Optional[str] = None
     folder_structure_dict: Union[str, dict] = Field(
         default=None,
         title="Folder Structure",
         description="The folder structure designed by the assistant in nested dict/json format."
     )
-    master_design_description: str = Field(
+    master_design_description: Optional[str] = Field(
         default=None,
         title="Master Design Description",
         description="Description of the design decisions made by the assistant."
     )
-
-    count_invocations: int = 0
     should_retry: bool = False
-    human_input_special_note: str = ''
-
-    dir_manager: DirManager = None
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-    
 
 # %% node
 # Subgraph node: Handles input from the user and designs the NEXTJS14 architecture
@@ -278,13 +272,8 @@ if int(os.getenv('run_local_test', 1)):
 
     # Invoke the graph, running the process through Code Architect A
     new_state = graph.invoke(state, config)
+    new_state = AgentState12_CAa(**new_state)
+    new_state.dir_manager = dir_manager
+    new_state.save_state(state_manager)
+    new_state.id
 
-
-    # %%
-    new_state
-    # %%
-    new_state['agentResponse_CAa']
-    # %%
-    # new_state['agentResponse_CAa'].content
-    # %%
-    print(new_state['agentResponse_CAa'].folder_structure_dict)

@@ -104,7 +104,10 @@ class DirManager:
 
     def add_to_directory(self, directory, name, content=None, is_folder=False):
         # Remove leading slash from name
-        name = name.lstrip('/')
+        try:
+            name = name.lstrip('/')
+        except:
+            name = name
         full_path = os.path.join(directory, name)
         if is_folder:
             os.makedirs(full_path, exist_ok=True)
@@ -283,10 +286,10 @@ class DirManager:
 dir_manager = DirManager(project_params_path="project_params.json")
 
 # Print the project name
-print(f"Project Name: {dir_manager.project_name}")
+# print(f"Project Name: {dir_manager.project_name}")
 
 # Get the current tree structure
-print(dir_manager.get_tree_structure())
+# print(dir_manager.get_tree_structure())
 
 # Add a new folder inside the project directory
 # dir_manager.add_to_directory(directory=dir_manager.root_directory, name="hello", is_folder=True)
@@ -295,8 +298,8 @@ print(dir_manager.get_tree_structure())
 # dir_manager.add_to_directory(directory=os.path.join(dir_manager.root_directory, "hello"), name="hello.py", content="print('Hello, World!')")
 
 # Overwrite the existing file
-assigned_file_path = 'app/homepage'
-dir_manager.overwrite_file(directory=os.path.join(dir_manager.root_directory, assigned_file_path), name="page.tsx", content="print('Hello, Universe!x')")
+# assigned_file_path = 'app/homepage'
+# dir_manager.overwrite_file(directory=os.path.join(dir_manager.root_directory, assigned_file_path), name="page.tsx", content="print('Hello, Universe!x')")
 
 # Delete the file
 # dir_manager.delete_item(directory=os.path.join(dir_manager.root_directory, "hello"), name="hello.py")
